@@ -9,15 +9,15 @@ double getMilliseconds();
 
 int main()
 {
-    FILE* out = fopen("result.txt", "w");
+    FILE* out = fopen("../../../result.txt", "w");
     
     double start = getMilliseconds();
 
     char input_path[9];
-    int size = 1000;
-    while (size < 16001)
+    int size = 125;
+    while (size < 2001)
     {
-        sprintf(input_path, "%d.txt", size);
+        sprintf(input_path, "../../../%d.txt", size);
         process_file(input_path, out);
         size *= 2;
     }
@@ -39,7 +39,7 @@ void trim_str(char* str)
 {
     for (int i = 0; i < strlen(str); i++)
     {
-        if (!isdigit(str[i]))
+        if (!isdigit(str[i]) && str[i] != '.')
         {
             str[i] = NULL;
             return;
@@ -59,21 +59,21 @@ long fsize(FILE* fp) {
     return size;
 }
 
-float get_line_avg(char* line)
+double get_line_avg(char* line)
 {
     int count = 0;
-    int sum = 0;
+    double sum = 0;
     char* number = strtok(line, " ");
 
     while (number != NULL)
     {
         trim_str(number);
-        sum += atoi(number);
+        sum += atof(number);
         count++;
         number = strtok(NULL, " ");
     }
 
-    return (float)sum / count;
+    return (double)sum / count;
 }
 
 char* get_file_vector(FILE* fp, long size)
@@ -84,9 +84,9 @@ char* get_file_vector(FILE* fp, long size)
 
     while ((getline(&line, &len, fp)) != -1)
     {
-        float avg = get_line_avg(line);
+        double avg = get_line_avg(line);
         char* avg_str = new char[size];
-        sprintf(avg_str, "%f", avg);
+        sprintf(avg_str, "%.8f", avg);
         strcat(strcat(result, avg_str), " ");
     }
 

@@ -1,36 +1,35 @@
-import sys
+import sys, math
 import numpy as np
 
 # Random matrix file generator for
 # Hybrid computing labs
 # Usage:
-# <script_name>.py [n_rows] [n_cols]
-# If only n_rows is presented the matrix will be square 
+# <script_name>.py [file_size_in_MegaBytes] [file_path]
+# Produces file with square matrix of floats
 
 def generate_five_files():
     '''
     Generated five files with 
-    matrices from 2x2 to 1250x1250
-    with step x50
+    matrices of sizes from 125Mb to 2Gb
     '''
-    i = 1000
-    while i < 16001:
-        matrix = np.random.randint(0, 99999, size=(i, i))
-        np.savetxt(str(i) + '.txt', matrix, fmt='%d', delimiter=' ')
-        i *= 2
+    mega_bytes = 125
+    while mega_bytes < 2001:
+        generate_file_with_matrix([mega_bytes, str(mega_bytes)])
+        mega_bytes *= 2
 
 
-def generate_file_with_matrix(size):
+def generate_file_with_matrix(sizeName):
     '''
     Function to generate file with
     random matrix of given size
     '''
-    num_rows = int(size[0])
-    num_cols = num_rows
-    if (len(size) > 1):
-        num_cols = int(size[1])
-    matrix = np.random.randint(0, 99999, size=(num_rows, num_cols))
-    np.savetxt(str(num_rows) + 'x' + str(num_cols) + '.txt', matrix, fmt='%d', delimiter=' ')
+    sizeInBytes = float(sizeName[0]) * (2**20) # 1 Mb = 2^20 bytes
+    num_rows_and_cols = int(math.sqrt(sizeInBytes / 11)) # 11 byte chars for each number
+    file_name = str(num_rows_and_cols)
+    if (len(sizeName) > 1):
+        file_name = sizeName[1]
+    matrix = np.random.rand(num_rows_and_cols, num_rows_and_cols)
+    np.savetxt(file_name + '.txt', matrix, fmt='%.8f', delimiter=' ')
     
 
 if __name__ == "__main__":
