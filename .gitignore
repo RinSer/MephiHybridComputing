@@ -1,0 +1,6 @@
+*.docx
+*.pptx
+.vs/
+bin/
+obj/
+*.txt
