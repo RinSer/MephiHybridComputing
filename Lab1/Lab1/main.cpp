@@ -7,20 +7,19 @@
 int process_file(char* file_path, FILE* out_file);
 double getMilliseconds();
 
-int main()
+int main(int argc, char* argv[])
 {
-    FILE* out = fopen("../../../result.txt", "w");
+    if (argc < 3)
+    {
+        printf("Need input file path and output file path arguments!");
+        return -1;
+    }
+    
+    FILE* out = fopen(argv[2], "w");
     
     double start = getMilliseconds();
 
-    char input_path[9];
-    int size = 125;
-    while (size < 2001)
-    {
-        sprintf(input_path, "../../../%d.txt", size);
-        process_file(input_path, out);
-        size *= 2;
-    }
+    process_file(argv[1], out);
 
     double end = getMilliseconds();
     double total_execution_time_in_seconds = (double)(end - start);

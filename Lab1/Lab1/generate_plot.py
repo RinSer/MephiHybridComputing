@@ -2,11 +2,11 @@ import matplotlib.pyplot as plt
 
 '''
 Last run data:
-131006862 bytes in 5421.875 milliseconds
-262070652 bytes in 11296.875 milliseconds
-524172402 bytes in 24875.000 milliseconds
-1048487622 bytes in 47640.625 milliseconds
-2096979546 bytes in 96203.125 milliseconds
+131006862 bytes in 7328.125 milliseconds
+262070652 bytes in 15015.625 milliseconds
+524172402 bytes in 31343.750 milliseconds
+1048487622 bytes in 58031.250 milliseconds
+2096979546 bytes in 94656.250 milliseconds
 '''
 
 sizesInBytes = [
@@ -18,11 +18,11 @@ sizesInBytes = [
 ]
 
 timeInMilliseconds = [
-    5421.875,
-    11296.875,
-    24875.000,
-    47640.625,
-    96203.125
+    7328.125,
+    15015.625,
+    31343.750,
+    58031.250,
+    94656.250
 ]
 
 assert len(sizesInBytes) == len(timeInMilliseconds)
