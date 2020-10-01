@@ -1,11 +1,49 @@
 import sys, math, socket
 import numpy as np
 
-# Random matrix stream generator for
-# Hybrid computing labs
-# Usage:
-# <script_name>.py [stream_size_in_MegaBytes] [tcp_port_out] [tcp_port_in]
-# Produces stream with square matrix of floats
+'''
+Random matrix stream generator for
+Hybrid computing labs
+Usage:
+<script_name>.py [stream_size_in_MegaBytes] [tcp_port_out] [tcp_port_in]
+Produces stream with square matrix of floats
+and sends it as byte stream to tcp_port_out
+and returns result received from tcp_port_in
+'''
+
+def send_string_to_socket(port, stream_string):
+    '''
+    Sends string as byte stream to an open tcp socket
+    '''
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server_address = ('localhost', int(port))
+    sock.connect(server_address)
+    #print(matrix_str.encode('utf-8'))
+    sock.sendall(stream_string.encode('utf-8'))
+    sock.close()
+
+
+def get_string_from_socket(port):
+    '''
+    Listens to tcp port until get
+    all the stream and then prints it
+    '''
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server_address = ('localhost', int(port))
+    sock.bind(server_address)
+    sock.listen(1)
+    connection, _ = sock.accept()
+
+    result = []
+    data = connection.recv(256)
+    while data:
+        result.append(data)
+        data = connection.recv(256)
+    print(''.join([part.decode() for part in result]))
+
+    connection.close()
+    sock.close()
+
 
 def generate_stream_with_matrix(sizePorts):
     '''
@@ -19,31 +57,8 @@ def generate_stream_with_matrix(sizePorts):
     #np.savetxt(file_name + '.txt', matrix, fmt='%.8f', delimiter=' ')
     matrix_str = np.array2string(matrix, formatter={'float_kind':lambda x: "%.8f" % x}, separator=' ').replace('[','').replace(']','')
 
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_address = ('localhost', int(sizePorts[1]))
-    sock.connect(server_address)
-
-    #print(matrix_str.encode('utf-8'))
-    sock.sendall(matrix_str.encode('utf-8'))
-    sock.close()
-
-    # open connection to receive the result
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_address = ('localhost', int(sizePorts[2]))
-    sock.bind(server_address)
-    sock.listen(1)
-    connection, _ = sock.accept()
-
-    result = []
-    data = connection.recv(8)
-    while data:
-        result.append(data)
-        print(data)
-        data = connection.recv(8)
-    print(result)
-
-    connection.close()
-    sock.close()
+    send_string_to_socket(sizePorts[1], matrix_str)
+    get_string_from_socket(sizePorts[2])
     
 
 if __name__ == "__main__":

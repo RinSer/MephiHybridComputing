@@ -110,16 +110,16 @@ double get_line_avg(char* line)
     return (double)sum / count;
 }
 
-std::vector<char> get_stream_vector(int connection, int* stream_size)
+int get_stream_vector(int connection, std::vector<char> &result)
 {
     int buffer_size = 1;
     std::vector<char> line;
-    std::vector<char> result;
     char* buffer = new char[buffer_size];
     
+    int stream_size = 0;
     while (read(connection, buffer, buffer_size) > 0)
     {
-        *stream_size++;
+        stream_size++;
         
         int num_bytes = 1;
         while (buffer[0] != '\n' && num_bytes > 0)
@@ -133,22 +133,23 @@ std::vector<char> get_stream_vector(int connection, int* stream_size)
         char* avg_str = new char[MAX_SIZE];
         sprintf(avg_str, "%.8f", avg);
         result.insert(result.end(), avg_str, avg_str + strlen(avg_str));
+        result.push_back(' ');
 
         line.clear();
     }
     result.push_back('\n');
 
-    return result;
+    return stream_size;
 }
 
 int process_stream(int input_port, int output_port)
 {
     double start = getMilliseconds();
 
-    int stream_size = 0;
     int* connection = listen_to_port(input_port);
 
-    std::vector<char> result = get_stream_vector(connection[0], &stream_size);
+    std::vector<char> result;
+    int stream_size = get_stream_vector(connection[0], result);
 
     close_connection(connection[0], connection[1]);
 
