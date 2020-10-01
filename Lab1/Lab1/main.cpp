@@ -1,31 +1,26 @@
-#include <cstdio>
-#include <cstdlib>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
 #include <ctype.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
 #include <string.h>
 #include <time.h>
+#include <vector>
+#define MAX_SIZE 12
 
-int process_file(char* file_path, FILE* out_file);
-double getMilliseconds();
+int process_stream(int input_port, int output_port);
 
 int main(int argc, char* argv[])
 {
     if (argc < 3)
     {
-        printf("Need input file path and output file path arguments!");
+        printf("Need input and output streams ports parameters!");
         return -1;
     }
-    
-    FILE* out = fopen(argv[2], "w");
-    
-    double start = getMilliseconds();
 
-    process_file(argv[1], out);
-
-    double end = getMilliseconds();
-    double total_execution_time_in_seconds = (double)(end - start);
-    fprintf(out, "Total execution time: %.3f milliseconds", total_execution_time_in_seconds);
-
-    fclose(out);
+    process_stream(atoi(argv[1]), atoi(argv[2]));
 
     return 0;
 }
@@ -46,16 +41,55 @@ void trim_str(char* str)
     }
 }
 
-long fsize(FILE* fp) {
-    int initial = ftell(fp);
+int* listen_to_port(int port)
+{
+    int sfd, connection;
 
-    fseek(fp, 0, SEEK_END);
+    int* opts = new int[1]{ 1 };
 
-    long size = ftell(fp);
+    if ((sfd = socket(AF_INET, SOCK_STREAM, 0)) == 0
+        || setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, opts, sizeof(int)))
+        exit(EXIT_FAILURE);
 
-    fseek(fp, initial, SEEK_SET);
+    struct sockaddr_in address;
+    int addrlen = sizeof(address);
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = INADDR_ANY;
+    address.sin_port = htons(port);
 
-    return size;
+    if (bind(sfd, (struct sockaddr*)&address,
+        sizeof(address)) < 0 || listen(sfd, 3) < 0
+        || (connection = accept(sfd, (struct sockaddr*)&address, (socklen_t*)&addrlen)) < 0)
+        exit(EXIT_FAILURE);
+
+    return new int[2]{ connection, sfd };
+}
+
+void close_connection(int connection, int sfd) 
+{
+    shutdown(connection, SHUT_RDWR);
+    close(connection);
+    shutdown(sfd, SHUT_RDWR);
+    close(sfd);
+}
+
+void send_stream_to_port(int port, char* stream)
+{
+    int sock = 0;
+    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+        exit(EXIT_FAILURE);
+
+    struct sockaddr_in serv_addr;
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_port = htons(port);
+
+    if (connect(sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0)
+        exit(EXIT_FAILURE);
+
+    send(sock, stream, strlen(stream), 0);
+
+    shutdown(sock, SHUT_WR);
+    close(sock);
 }
 
 double get_line_avg(char* line)
@@ -75,44 +109,57 @@ double get_line_avg(char* line)
     return (double)sum / count;
 }
 
-char* get_file_vector(FILE* fp, long size)
+std::vector<char> get_stream_vector(int connection, int* stream_size)
 {
-    char* result = new char[size];
-    char* line = NULL;
-    size_t len = 0;
-
-    while ((getline(&line, &len, fp)) != -1)
+    int buffer_size = 1;
+    std::vector<char> line;
+    std::vector<char> result;
+    char* buffer = new char[buffer_size];
+    
+    while (read(connection, buffer, buffer_size) > 0)
     {
-        double avg = get_line_avg(line);
-        char* avg_str = new char[size];
+        *stream_size++;
+        
+        int num_bytes = 1;
+        while (buffer[0] != '\n' && num_bytes > 0)
+        {
+            line.push_back(buffer[0]);
+            num_bytes = read(connection, buffer, buffer_size);
+        }
+        line.push_back(NULL);
+
+        double avg = get_line_avg(&line[0]);
+        char* avg_str = new char[MAX_SIZE];
         sprintf(avg_str, "%.8f", avg);
-        strcat(strcat(result, avg_str), " ");
+        result.insert(result.end(), avg_str, avg_str + strlen(avg_str));
+
+        line.clear();
     }
+    result.push_back('\n');
 
     return result;
 }
 
-int process_file(char* file_path, FILE* out_file)
+int process_stream(int input_port, int output_port)
 {
     double start = getMilliseconds();
 
-    FILE* fp = fopen(file_path, "r");
-    if (fp == NULL)
-        exit(EXIT_FAILURE);
+    int stream_size = 0;
+    int* connection = listen_to_port(input_port);
 
-    long file_size = fsize(fp);
+    std::vector<char> result = get_stream_vector(connection[0], &stream_size);
 
-    char* result = get_file_vector(fp, file_size);
+    close_connection(connection[0], connection[1]);
 
-    fclose(fp);
-
-    fprintf(out_file, "%s\n", result);
-
+    char* buffer = new char[256];
     double end = getMilliseconds();
     double execution_time_in_seconds = (double)(end - start);
-    printf("%d bytes in %.3f milliseconds\n", file_size, execution_time_in_seconds);
+    sprintf(buffer, "%d bytes in %.3f milliseconds\n", stream_size, execution_time_in_seconds);
 
-    fprintf(out_file, "%d bytes in %.3f milliseconds\n", file_size, execution_time_in_seconds);
+    result.insert(result.end(), buffer, buffer + strlen(buffer));
+    result.push_back(NULL);
+
+    send_stream_to_port(output_port, &result[0]);
 
     return 0;
 }
