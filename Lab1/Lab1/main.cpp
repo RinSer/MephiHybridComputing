@@ -16,11 +16,15 @@ int main(int argc, char* argv[])
 {
     if (argc < 3)
     {
-        printf("Need input and output streams ports parameters!");
+        printf("Need input and output streams ports as parameters!");
         return -1;
     }
 
-    process_stream(atoi(argv[1]), atoi(argv[2]));
+    int input_port = atoi(argv[1]);
+    int output_port = atoi(argv[2]);
+
+    for (;;) // forever and ever
+        process_stream(input_port, output_port);
 
     return 0;
 }
@@ -126,6 +130,7 @@ int get_stream_vector(int connection, std::vector<char> &result)
         {
             line.push_back(buffer[0]);
             num_bytes = read(connection, buffer, buffer_size);
+            stream_size++;
         }
         line.push_back(NULL);
 
