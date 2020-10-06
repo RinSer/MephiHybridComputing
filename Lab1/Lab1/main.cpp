@@ -24,7 +24,13 @@ int main(int argc, char* argv[])
     int output_port = atoi(argv[2]);
 
     for (;;) // forever and ever
-        process_stream(input_port, output_port);
+    {
+        #pragma omp parallel
+        #pragma omp single
+        {
+            process_stream(input_port, output_port);
+        }
+    }
 
     return 0;
 }
@@ -117,15 +123,17 @@ double get_line_avg(char* line)
 int get_stream_vector(int connection, std::vector<char> &result)
 {
     int buffer_size = 1;
-    std::vector<char> line;
     char* buffer = new char[buffer_size];
     
+    int line_count = -1;
     int stream_size = 0;
     while (read(connection, buffer, buffer_size) > 0)
     {
         stream_size++;
-        
         int num_bytes = 1;
+
+        std::vector<char> line;
+
         while (buffer[0] != '\n' && num_bytes > 0)
         {
             line.push_back(buffer[0]);
@@ -134,14 +142,21 @@ int get_stream_vector(int connection, std::vector<char> &result)
         }
         line.push_back(NULL);
 
-        double avg = get_line_avg(&line[0]);
-        char* avg_str = new char[MAX_SIZE];
-        sprintf(avg_str, "%.8f", avg);
-        result.insert(result.end(), avg_str, avg_str + strlen(avg_str));
-        result.push_back(' ');
+        line_count++;
 
-        line.clear();
+        #pragma omp task shared(result)
+        {
+            int current_line = line_count;
+            double avg = get_line_avg(&line[0]);
+            char* avg_str = new char[MAX_SIZE];
+            sprintf(avg_str, "%.8f ", avg);
+
+            #pragma omp critical
+            result.insert(result.begin() + current_line * strlen(avg_str), avg_str, avg_str + strlen(avg_str));
+        }
     }
+
+    #pragma omp taskwait
     result.push_back('\n');
 
     return stream_size;
@@ -154,6 +169,7 @@ int process_stream(int input_port, int output_port)
     int* connection = listen_to_port(input_port);
 
     std::vector<char> result;
+
     int stream_size = get_stream_vector(connection[0], result);
 
     close_connection(connection[0], connection[1]);

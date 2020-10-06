@@ -114,7 +114,11 @@
     <ClCompile />
     <ClCompile>
       <AdditionalIncludeDirectories>C:\Users\v-seirin\AppData\Local\Microsoft\Linux\HeaderCache\1.0\-740708270\usr\include;C:\Users\v-seirin\AppData\Local\Microsoft\Linux\HeaderCache\1.0\-740708270\usr\include\x86_64-linux-gnu;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalOptions>-fopenmp %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
+    <Link>
+      <AdditionalOptions>-fopenmp %(AdditionalOptions)</AdditionalOptions>
+    </Link>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />
