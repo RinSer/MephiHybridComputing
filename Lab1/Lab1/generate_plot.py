@@ -7,7 +7,6 @@ import matplotlib.pyplot as plt
 # 1048487622 bytes in 58031.250 milliseconds
 # 2096979546 bytes in 94656.250 milliseconds
 
-
 # 5 runs over TCP:
 # PS C:\Users\v-seirin\Desktop\Hybrid\Lab1\Lab1> python generate_data.py 1 2525 2626
 # 0.49075648328076077 0.49436815626045755 0.49236830136596954
@@ -45,6 +44,44 @@ import matplotlib.pyplot as plt
 # 8384292 bytes in 207046.875 milliseconds
 # 16751550 bytes in 404500.000 milliseconds
 
+# 5 run over TCP paralleled:
+# PS C:\Users\v-seirin\Desktop\Hybrid\Lab1\Lab1> python generate_data.py 1 2525 2626
+# 308
+# 0.50326439 0.48994679 0.50655318                                                                                                                                                                                     
+# 308
+# 0.50326439 0.48994679 0.50655318
+# 1043812 bytes in 17578.125 milliseconds
+# PS C:\Users\v-seirin\Desktop\Hybrid\Lab1\Lab1> python generate_data.py 2 2525 2626
+# 436
+# 0.52899559 0.48574391 0.48616494
+# 436
+# 0.52899559 0.48574391 0.48616494
+# 2091492 bytes in 36609.375 milliseconds
+# PS C:\Users\v-seirin\Desktop\Hybrid\Lab1\Lab1> python generate_data.py 4 2525 2626
+# 617
+# 0.49643743 0.4639367 0.50954577
+# 617
+# 0.49643743 0.46393670 0.50954577
+# 4188196 bytes in 91937.500 milliseconds
+# PS C:\Users\v-seirin\Desktop\Hybrid\Lab1\Lab1> python generate_data.py 8 2525 2626
+# 873
+# 0.49200007 0.50095599 0.49871275
+# 873
+# 0.49200007 0.50095599 0.49871275
+# 8384292 bytes in 243250.000 milliseconds
+# PS C:\Users\v-seirin\Desktop\Hybrid\Lab1\Lab1> python generate_data.py 16 2525 2626
+# 1234
+# 0.49514329 0.5111622 0.50995175
+# 1234
+# 0.49514329 0.51116220 0.50995175
+# 16751550 bytes in 513328.125 milliseconds
+
+# 1043812 bytes in 17578.125 milliseconds
+# 2091492 bytes in 36609.375 milliseconds
+# 4188196 bytes in 91937.500 milliseconds
+# 8384292 bytes in 243250.000 milliseconds
+# 16751550 bytes in 513328.125 milliseconds
+
 sizesInBytes = [
     1, 2, 4, 8, 16
 ]
@@ -57,12 +94,23 @@ timeInMilliseconds = [
     404500
 ]
 
+paralleledTimeInMilliseconds = [
+    17578,
+    36609,
+    91937,
+    243250,
+    513328
+]
+
 assert len(sizesInBytes) == len(timeInMilliseconds)
+assert len(sizesInBytes) == len(paralleledTimeInMilliseconds)
 
 plt.xlabel('size in megabytes')
 plt.ylabel('time in milliseconds')
 
 ax = plt.plot(sizesInBytes, timeInMilliseconds, 'ro')
+plt.plot(sizesInBytes, paralleledTimeInMilliseconds, 'yo')
+plt.plot(sizesInBytes, paralleledTimeInMilliseconds, 'g')
 plt.plot(sizesInBytes, timeInMilliseconds)
 
 plt.show()

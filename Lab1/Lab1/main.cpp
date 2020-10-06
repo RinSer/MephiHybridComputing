@@ -164,9 +164,9 @@ int get_stream_vector(int connection, std::vector<char> &result)
 
 int process_stream(int input_port, int output_port)
 {
-    double start = getMilliseconds();
-
     int* connection = listen_to_port(input_port);
+
+    double start = getMilliseconds();
 
     std::vector<char> result;
 
