@@ -24,13 +24,7 @@ int main(int argc, char* argv[])
     int output_port = atoi(argv[2]);
 
     for (;;) // forever and ever
-    {
-        #pragma omp parallel
-        #pragma omp single
-        {
-            process_stream(input_port, output_port);
-        }
-    }
+        process_stream(input_port, output_port);
 
     return 0;
 }
@@ -103,61 +97,79 @@ void send_stream_to_port(int port, char* stream)
     close(sock);
 }
 
-double get_line_avg(char* line)
+float get_line_avg(std::vector<float> line)
 {
-    int count = 0;
-    double sum = 0;
-    char* number = strtok(line, " ");
+    int count = line.size();
+    float sum = 0;
+    
+    for (int i = 0; i < count; i++)
+        sum += line[i] / count;
 
-    while (number != NULL)
-    {
-        trim_str(number);
-        sum += atof(number);
-        count++;
-        number = strtok(NULL, " ");
-    }
-
-    return (double)sum / count;
+    return sum;
 }
 
-int get_stream_vector(int connection, std::vector<char> &result)
+std::vector<char> get_avg_vector(std::vector<std::vector<float>> matrix)
+{
+    std::vector<float> result;
+    
+    int matrix_size = matrix.size();
+
+    result.reserve(matrix_size);
+
+    #pragma omp parallel for shared(result)
+    for (int i = 0; i < matrix_size; i++) 
+    {
+        double avg = get_line_avg(matrix[i]);
+        result[i] = avg;
+    }
+
+    std::vector<char> char_result;
+
+    for (int i = 0; i < matrix_size; i++) 
+    {
+        char* avg_str = new char[MAX_SIZE];
+        sprintf(avg_str, "%.8f ", result[i]);
+        char_result.insert(char_result.end(), avg_str, avg_str + strlen(avg_str));
+    }
+
+    char_result.push_back('\n');
+
+    return char_result;
+}
+
+int get_stream_matrix(int connection, std::vector<std::vector<float>> &matrix)
 {
     int buffer_size = 1;
     char* buffer = new char[buffer_size];
     
-    int line_count = -1;
+    std::vector<char> number;
+    std::vector<float> line;
     int stream_size = 0;
     while (read(connection, buffer, buffer_size) > 0)
     {
         stream_size++;
         int num_bytes = 1;
 
-        std::vector<char> line;
-
         while (buffer[0] != '\n' && num_bytes > 0)
         {
-            line.push_back(buffer[0]);
+            if (buffer[0] == ' ')
+            {
+                line.push_back(atof(&number[0]));
+                number.clear();
+            }
+            else
+                number.push_back(buffer[0]);
+
             num_bytes = read(connection, buffer, buffer_size);
             stream_size++;
         }
-        line.push_back(NULL);
+        line.push_back(atof(&number[0]));
+        number.clear();
 
-        line_count++;
+        matrix.push_back(line);
 
-        #pragma omp task shared(result)
-        {
-            int current_line = line_count;
-            double avg = get_line_avg(&line[0]);
-            char* avg_str = new char[MAX_SIZE];
-            sprintf(avg_str, "%.8f ", avg);
-
-            #pragma omp critical
-            result.insert(result.begin() + current_line * strlen(avg_str), avg_str, avg_str + strlen(avg_str));
-        }
+        line.clear();
     }
-
-    #pragma omp taskwait
-    result.push_back('\n');
 
     return stream_size;
 }
@@ -168,15 +180,18 @@ int process_stream(int input_port, int output_port)
 
     double start = getMilliseconds();
 
-    std::vector<char> result;
+    std::vector<std::vector<float>> matrix;
 
-    int stream_size = get_stream_vector(connection[0], result);
+    int stream_size = get_stream_matrix(connection[0], matrix);
 
     close_connection(connection[0], connection[1]);
 
-    char* buffer = new char[256];
+    std::vector<char> result = get_avg_vector(matrix);
+
     double end = getMilliseconds();
     double execution_time_in_seconds = (double)(end - start);
+
+    char* buffer = new char[256];
     sprintf(buffer, "%d bytes in %.3f milliseconds\n", stream_size, execution_time_in_seconds);
 
     result.insert(result.end(), buffer, buffer + strlen(buffer));

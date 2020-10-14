@@ -49,13 +49,13 @@ def get_string_from_socket(port, check_vector):
     execution_time = lines[-2]
     numbers = lines[0].split(' ')
 
-    assert len(numbers)-1 == len(check_vector)
-    for i in range(len(check_vector)):
-        assert math.fabs(float(numbers[i]) - check_vector[i]) < 0.0000001
-
     print(len(numbers)-1)
     print(' '.join(numbers[:NUM_AVERAGES_DISPLAYED]))
     print(execution_time)
+
+    assert len(numbers)-1 == len(check_vector)
+    for i in range(len(check_vector)):
+        assert math.fabs(float(numbers[i]) - check_vector[i]) < 0.00001
 
     connection.close()
     sock.close()
