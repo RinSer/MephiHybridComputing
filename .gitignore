@@ -3,4 +3,6 @@
 .vs/
 bin/
 obj/
+x64/
+Debug/
 *.txt
