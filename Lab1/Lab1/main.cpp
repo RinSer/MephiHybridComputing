@@ -8,29 +8,29 @@
 #include <string.h>
 #include <time.h>
 #include <vector>
+#include <omp.h>
 #define MAX_SIZE 12
 
 int process_stream(int input_port, int output_port);
 
 int main(int argc, char* argv[])
 {
-    if (argc < 3)
+    if (argc < 4)
     {
-        printf("Need input and output streams ports as parameters!");
+        printf("Need input, output streams ports and number of threads as parameters!");
         return -1;
     }
 
     int input_port = atoi(argv[1]);
     int output_port = atoi(argv[2]);
+    int num_threads = atoi(argv[3]);
+
+    omp_set_num_threads(num_threads);
 
     for (;;) // forever and ever
         process_stream(input_port, output_port);
 
     return 0;
-}
-
-double getMilliseconds() {
-    return 1000.0 * clock() / CLOCKS_PER_SEC;
 }
 
 void trim_str(char* str)
@@ -101,6 +101,8 @@ float get_line_avg(std::vector<float> line)
 {
     int count = line.size();
     float sum = 0;
+
+    //printf("%d\n", omp_get_thread_num());
     
     for (int i = 0; i < count; i++)
         sum += line[i] / count;
@@ -178,21 +180,21 @@ int process_stream(int input_port, int output_port)
 {
     int* connection = listen_to_port(input_port);
 
-    double start = getMilliseconds();
-
     std::vector<std::vector<float>> matrix;
 
     int stream_size = get_stream_matrix(connection[0], matrix);
 
     close_connection(connection[0], connection[1]);
 
+    double start = omp_get_wtime();
+
     std::vector<char> result = get_avg_vector(matrix);
 
-    double end = getMilliseconds();
-    double execution_time_in_seconds = (double)(end - start);
+    double end = omp_get_wtime();
+    double execution_time_in_seconds = (double)(end - start) * 1000;
 
     char* buffer = new char[256];
-    sprintf(buffer, "%d bytes in %.3f milliseconds\n", stream_size, execution_time_in_seconds);
+    sprintf(buffer, "%d bytes in %.9f milliseconds\n", stream_size, execution_time_in_seconds);
 
     result.insert(result.end(), buffer, buffer + strlen(buffer));
     result.push_back(NULL);
