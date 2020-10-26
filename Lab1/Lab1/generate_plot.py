@@ -21,10 +21,10 @@ import matplotlib.pyplot as plt
 # 4188196 bytes in 5.765700000 milliseconds
 # PS C:\Users\v-seirin\Desktop\Hybrid\Lab1\Lab1> python generate_data.py 8 2525 2626
 # 873
-# 0.49465644 0.47979742 0.49815887
+# 0.48612145 0.49477668 0.49213464
 # 873
-# 0.49465638 0.47979701 0.49815899
-# 8384292 bytes in 13.783100001 milliseconds
+# 0.48612157 0.49477684 0.49213430
+# 8384292 bytes in 15.654200000 milliseconds
 # PS C:\Users\v-seirin\Desktop\Hybrid\Lab1\Lab1> python generate_data.py 16 2525 2626
 # 1234
 # 0.5113332 0.50899978 0.50178553
@@ -106,7 +106,7 @@ oneThreadTime = [
     1.668500000,
     2.915200000,
     5.765700000,
-    13.783100001,
+    15.654200000,
     22.432100000
 ]
 

@@ -33,18 +33,6 @@ int main(int argc, char* argv[])
     return 0;
 }
 
-void trim_str(char* str)
-{
-    for (int i = 0; i < strlen(str); i++)
-    {
-        if (!isdigit(str[i]) && str[i] != '.')
-        {
-            str[i] = NULL;
-            return;
-        }
-    }
-}
-
 int* listen_to_port(int port)
 {
     int sfd, connection;
