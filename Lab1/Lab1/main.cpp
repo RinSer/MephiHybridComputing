@@ -76,7 +76,7 @@ float get_line_avg(std::vector<float> line)
     return sum;
 }
 
-std::vector<char> get_avg_vector(std::vector<float> matrix, int row_size, int num_rows, bool print = false)
+std::vector<char> get_avg_vector(std::vector<float> matrix, int row_size, int num_rows)
 {
     std::vector<float> result;
     result.reserve(num_rows);
@@ -211,7 +211,7 @@ int main(int argc, char* argv[])
 
         MPI_Scatterv(flat_matrix.data(), sendcounts, displs, MPI_FLOAT, partial_matrix.data(), sendcounts[numtasks-1], MPI_FLOAT, 0, MPI_COMM_WORLD);
 
-        std::vector<char> partial_result = get_avg_vector(partial_matrix, row_size, num_rows, true);
+        std::vector<char> partial_result = get_avg_vector(partial_matrix, row_size, num_rows);
 
         std::vector<char> parallel_result;
         if (rank == 0) parallel_result.reserve(WORD_SIZE * row_size);
