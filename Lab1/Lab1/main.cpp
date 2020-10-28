@@ -203,9 +203,6 @@ int main(int argc, char* argv[])
 
         int num_rows = sendcounts[rank] / row_size;
 
-
-        MPI_Barrier(MPI_COMM_WORLD);
-
         std::vector<float> partial_matrix;
         partial_matrix.resize(row_size * row_size);
 
@@ -234,8 +231,6 @@ int main(int argc, char* argv[])
         }
 
         MPI_Gatherv(partial_result.data(), (int)partial_result.size(), MPI_CHAR, parallel_result.data(), recvcounts, rdispls, MPI_CHAR, 0, MPI_COMM_WORLD);
-
-        MPI_Barrier(MPI_COMM_WORLD);
 
         if (rank == 0) // only the first process communicates with external
         {
