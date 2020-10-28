@@ -1,0 +1,2 @@
+# mpic++ -fopenmp main.cpp -o mpi.o
+mpic++ main.cpp -o mpi.o

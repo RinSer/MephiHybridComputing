@@ -8,30 +8,10 @@
 #include <string.h>
 #include <time.h>
 #include <vector>
-#include <omp.h>
+#include <math.h>
+#include <mpi.h>
+#define WORD_SIZE 11
 #define MAX_SIZE 12
-
-int process_stream(int input_port, int output_port);
-
-int main(int argc, char* argv[])
-{
-    if (argc < 4)
-    {
-        printf("Need input, output streams ports and number of threads as parameters!");
-        return -1;
-    }
-
-    int input_port = atoi(argv[1]);
-    int output_port = atoi(argv[2]);
-    int num_threads = atoi(argv[3]);
-
-    omp_set_num_threads(num_threads);
-
-    for (;;) // forever and ever
-        process_stream(input_port, output_port);
-
-    return 0;
-}
 
 int* listen_to_port(int port)
 {
@@ -57,7 +37,7 @@ int* listen_to_port(int port)
     return new int[2]{ connection, sfd };
 }
 
-void close_connection(int connection, int sfd) 
+void close_connection(int connection, int sfd)
 {
     shutdown(connection, SHUT_RDWR);
     close(connection);
@@ -90,48 +70,40 @@ float get_line_avg(std::vector<float> line)
     int count = line.size();
     float sum = 0;
 
-    //printf("%d\n", omp_get_thread_num());
-    
     for (int i = 0; i < count; i++)
         sum += line[i] / count;
 
     return sum;
 }
 
-std::vector<char> get_avg_vector(std::vector<std::vector<float>> matrix)
+std::vector<char> get_avg_vector(std::vector<float> matrix, int row_size, int num_rows, bool print = false)
 {
     std::vector<float> result;
-    
-    int matrix_size = matrix.size();
+    result.reserve(num_rows);
 
-    result.reserve(matrix_size);
-
-    #pragma omp parallel for shared(result)
-    for (int i = 0; i < matrix_size; i++) 
+    for (int i = 0; i < num_rows; i++)
     {
-        double avg = get_line_avg(matrix[i]);
+        double avg = get_line_avg(std::vector<float>(matrix.begin() + (i * row_size), matrix.begin() + (i * row_size) + row_size));
         result[i] = avg;
     }
 
     std::vector<char> char_result;
 
-    for (int i = 0; i < matrix_size; i++) 
+    for (int i = 0; i < num_rows; i++)
     {
         char* avg_str = new char[MAX_SIZE];
         sprintf(avg_str, "%.8f ", result[i]);
         char_result.insert(char_result.end(), avg_str, avg_str + strlen(avg_str));
     }
 
-    char_result.push_back('\n');
-
     return char_result;
 }
 
-int get_stream_matrix(int connection, std::vector<std::vector<float>> &matrix)
+int get_stream_matrix(int connection, std::vector<std::vector<float>>& matrix)
 {
     int buffer_size = 1;
     char* buffer = new char[buffer_size];
-    
+
     std::vector<char> number;
     std::vector<float> line;
     int stream_size = 0;
@@ -164,30 +136,124 @@ int get_stream_matrix(int connection, std::vector<std::vector<float>> &matrix)
     return stream_size;
 }
 
-int process_stream(int input_port, int output_port)
+int main(int argc, char* argv[])
 {
-    int* connection = listen_to_port(input_port);
+    if (argc < 3)
+    {
+        printf("Need input and output streams ports as parameters!");
+        return -1;
+    }
 
-    std::vector<std::vector<float>> matrix;
+    int input_port = atoi(argv[1]);
+    int output_port = atoi(argv[2]);
 
-    int stream_size = get_stream_matrix(connection[0], matrix);
+    MPI_Init(&argc, &argv);
 
-    close_connection(connection[0], connection[1]);
+    for (;;) // forever and ever
+    {
+        int rank, numtasks, stream_size, num_elements, row_size;
 
-    double start = omp_get_wtime();
+        std::vector<std::vector<float>> matrix;
+        std::vector<float> flat_matrix;
+        std::vector<float> matrix_row;
 
-    std::vector<char> result = get_avg_vector(matrix);
+        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+        MPI_Comm_size(MPI_COMM_WORLD, &numtasks);
 
-    double end = omp_get_wtime();
-    double execution_time_in_seconds = (double)(end - start) * 1000;
+        int* sendcounts = new int[numtasks];
+        int* displs = new int[numtasks];
 
-    char* buffer = new char[256];
-    sprintf(buffer, "%d bytes in %.9f milliseconds\n", stream_size, execution_time_in_seconds);
+        if (rank == 0) // only the first process communicates with external
+        {
+            int* connection = listen_to_port(input_port);
 
-    result.insert(result.end(), buffer, buffer + strlen(buffer));
-    result.push_back(NULL);
+            stream_size = get_stream_matrix(connection[0], matrix);
 
-    send_stream_to_port(output_port, &result[0]);
+            close_connection(connection[0], connection[1]);
+
+            int total_size = matrix.size() * matrix.size();
+            
+            for (int i = 0; i < matrix.size(); i++)
+                for (int j = 0; j < matrix[i].size(); j++)
+                    flat_matrix.push_back(matrix[i][j]);
+
+            row_size = (int)matrix.size();
+            num_elements = (int)floor(total_size / numtasks);
+            num_elements -= num_elements % row_size;
+
+            // calculate send counts and displacements
+            int sum = 0;
+            for (int i = 0; i < numtasks; i++) {
+                sendcounts[i] = num_elements;
+
+                if (i == numtasks - 1)
+                    sendcounts[i] = total_size - sum;
+
+                displs[i] = sum;
+                sum += sendcounts[i];
+            }
+        }
+
+        MPI_Barrier(MPI_COMM_WORLD);
+
+        MPI_Bcast(&num_elements, 1, MPI_INT, 0, MPI_COMM_WORLD);
+        MPI_Bcast(&row_size, 1, MPI_INT, 0, MPI_COMM_WORLD);
+        MPI_Bcast(sendcounts, numtasks, MPI_INT, 0, MPI_COMM_WORLD);
+        MPI_Bcast(displs, numtasks, MPI_INT, 0, MPI_COMM_WORLD);
+
+        int num_rows = sendcounts[rank] / row_size;
+
+
+        MPI_Barrier(MPI_COMM_WORLD);
+
+        std::vector<float> partial_matrix;
+        partial_matrix.resize(row_size * row_size);
+
+        double start;
+        if (rank == 0) start = MPI_Wtime(); // only the first process controls the timing
+
+        MPI_Scatterv(flat_matrix.data(), sendcounts, displs, MPI_FLOAT, partial_matrix.data(), sendcounts[numtasks-1], MPI_FLOAT, 0, MPI_COMM_WORLD);
+
+        std::vector<char> partial_result = get_avg_vector(partial_matrix, row_size, num_rows, true);
+
+        std::vector<char> parallel_result;
+        if (rank == 0) parallel_result.reserve(WORD_SIZE * row_size);
+
+        int* recvcounts = new int[numtasks];
+        int* rdispls = new int[numtasks];
+        int sum = 0;
+        int char_size = num_elements / row_size * WORD_SIZE;
+        for (int i = 0; i < numtasks; i++) {
+            recvcounts[i] = char_size;
+
+            if (i == numtasks - 1)
+                recvcounts[i] = (row_size * WORD_SIZE) - sum;
+
+            rdispls[i] = sum;
+            sum += recvcounts[i];
+        }
+
+        MPI_Gatherv(partial_result.data(), (int)partial_result.size(), MPI_CHAR, parallel_result.data(), recvcounts, rdispls, MPI_CHAR, 0, MPI_COMM_WORLD);
+
+        MPI_Barrier(MPI_COMM_WORLD);
+
+        if (rank == 0) // only the first process communicates with external
+        {
+            char* result = new char[sum + 2];
+            snprintf(result, sum + 1, "%s", &parallel_result[0]);
+            
+            double end = MPI_Wtime();
+            double execution_time_in_seconds = (double)(end - start) * 1000;
+
+            char* buffer = new char[sum + 3 + 256];
+            snprintf(buffer, sum + 2 + 256, "%s\n%d bytes in %.9f milliseconds\n", result, stream_size, execution_time_in_seconds);
+            printf("%s\n", buffer);
+
+            send_stream_to_port(output_port, buffer);
+        }
+    }
+
+    MPI_Finalize();
 
     return 0;
 }
