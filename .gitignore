@@ -6,3 +6,7 @@ obj/
 x64/
 Debug/
 *.txt
+/Lab1/Lab4/sample/simplePrintf.o
+/Lab1/Lab4/sample/simplePrintf
+/Lab1/Lab4/main.o
+/Lab1/Lab4/main
