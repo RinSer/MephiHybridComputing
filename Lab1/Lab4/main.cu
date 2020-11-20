@@ -7,9 +7,14 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <string.h>
+#include <vector>
 #include <time.h>
-#include <thrust/host_vector.h>
-#include <thrust/device_vector.h>
+#include <assert.h>
+// CUDA runtime
+#include <cuda_runtime.h>
+// helper functions and utilities to work with CUDA
+#include <helper_functions.h>
+#include <helper_cuda.h>
 #define MAX_SIZE 12
 
 int process_stream(int input_port, int output_port);
@@ -102,52 +107,13 @@ void send_stream_to_port(int port, char* stream)
     close(sock);
 }
 
-float get_line_avg(thrust::host_vector<float> line)
-{
-    int count = line.size();
-    float sum = 0;
-
-    for (int i = 0; i < count; i++)
-        sum += line[i] / count;
-
-    return sum;
-}
-
-thrust::host_vector<char> get_avg_vector(thrust::host_vector<thrust::host_vector<float>> matrix)
-{
-    thrust::host_vector<float> result;
-    
-    int matrix_size = matrix.size();
-
-    result.reserve(matrix_size);
-
-    for (int i = 0; i < matrix_size; i++) 
-    {
-        double avg = get_line_avg(matrix[i]);
-        result[i] = avg;
-    }
-
-    thrust::host_vector<char> char_result;
-
-    for (int i = 0; i < matrix_size; i++) 
-    {
-        char* avg_str = new char[MAX_SIZE];
-        sprintf(avg_str, "%.8f ", result[i]);
-        char_result.insert(char_result.end(), avg_str, avg_str + strlen(avg_str));
-    }
-
-    char_result.push_back('\n');
-
-    return char_result;
-}
-
-int get_stream_matrix(int connection, thrust::host_vector<thrust::host_vector<float>> &matrix)
+int get_stream_matrix(int connection, std::vector<std::vector<float>> &matrix)
 {
     int buffer_size = 1;
     char* buffer = new char[buffer_size];
     
-    thrust::host_vector<char> number;
-    thrust::host_vector<float> line;
+    std::vector<char> number;
+    std::vector<float> line;
     int stream_size = 0;
     while (read(connection, buffer, buffer_size) > 0)
     {
@@ -178,22 +144,77 @@ int get_stream_matrix(int connection, thrust::host_vector<thrust::host_vector<fl
     return stream_size;
 }
 
+void convertVectorToFlatArray(std::vector<std::vector<float>> matrix, float *flat)
+{
+    int msize = matrix.size();
+    for (int i = 0; i < msize; i++)
+    { 
+        for (int j = 0; j < msize; j++)
+        {
+            flat[j + (i * msize)] = matrix[i][j];
+        }
+    }
+ }
+
+__global__ void get_avg_vector(float *matrix, float *result)
+{
+    int row_idx = blockIdx.x;
+    int idx = threadIdx.x + (blockIdx.x * blockDim.x);
+
+    atomicAdd(&result[row_idx], matrix[idx] / blockDim.x);
+}
+
 int process_stream(int input_port, int output_port)
 {
     int* connection = listen_to_port(input_port);
 
-    thrust::host_vector<thrust::host_vector<float>> matrix;
+    std::vector<std::vector<float>> matrix;
 
     int stream_size = get_stream_matrix(connection[0], matrix);
 
     close_connection(connection[0], connection[1]);
 
+    float *a_matrix = (float*)malloc(matrix.size() * matrix.size() * sizeof(float));
+    convertVectorToFlatArray(matrix, a_matrix);
+
+    int matrix_size = matrix.size();
+
+    printf("%d\n", matrix_size);
+
+    float *d_matrix;
+    float *d_result;
+
+    int row_size = matrix_size * sizeof(float);
+    int flat_size = row_size * row_size;
+
+    cudaMalloc((void**)&d_matrix, flat_size);
+    cudaMemcpy(d_matrix, a_matrix, flat_size, cudaMemcpyHostToDevice);
+
+    cudaMalloc((void**)&d_result, row_size);
+    cudaMemset(d_result, 0, row_size);
+
     double start = getMilliseconds();
 
-    thrust::host_vector<char> result = get_avg_vector(matrix);
+    printf("%f\n", start);
+
+    get_avg_vector<<<matrix_size, matrix_size>>>(d_matrix, d_result);
+    cudaDeviceSynchronize();
 
     double end = getMilliseconds();
     double execution_time_in_seconds = (double)(end - start);
+
+    float *float_result = (float*)malloc(row_size);
+    cudaMemcpy(float_result, d_result, row_size, cudaMemcpyDeviceToHost);
+
+    std::vector<char> result;
+
+    for (int i = 0; i < matrix_size; i++) 
+    {
+        char* avg_str = new char[MAX_SIZE];
+        sprintf(avg_str, "%.8f ", float_result[i]);
+        result.insert(result.end(), avg_str, avg_str + strlen(avg_str));
+    }
+    result.push_back('\n');
 
     char* buffer = new char[256];
     sprintf(buffer, "%d bytes in %.9f milliseconds\n", stream_size, execution_time_in_seconds);
@@ -201,7 +222,14 @@ int process_stream(int input_port, int output_port)
     result.insert(result.end(), buffer, buffer + strlen(buffer));
     result.push_back('\0');
 
+    printf("%s\n", &result[0]);
+
     send_stream_to_port(output_port, &result[0]);
+
+    cudaFree(d_result);
+    cudaFree(d_matrix);
+    free(float_result);
+    free(a_matrix);
 
     return 0;
 }
