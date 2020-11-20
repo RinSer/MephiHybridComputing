@@ -8,8 +8,7 @@
 #include <errno.h>
 #include <string.h>
 #include <time.h>
-#include <thrust/host_vector.h>
-#include <thrust/device_vector.h>
+#include <vector>
 #define MAX_SIZE 12
 
 int process_stream(int input_port, int output_port);
@@ -102,7 +101,7 @@ void send_stream_to_port(int port, char* stream)
     close(sock);
 }
 
-float get_line_avg(thrust::host_vector<float> line)
+float get_line_avg(std::vector<float> line)
 {
     int count = line.size();
     float sum = 0;
@@ -113,9 +112,9 @@ float get_line_avg(thrust::host_vector<float> line)
     return sum;
 }
 
-thrust::host_vector<char> get_avg_vector(thrust::host_vector<thrust::host_vector<float>> matrix)
+std::vector<char> get_avg_vector(std::vector<std::vector<float>> matrix)
 {
-    thrust::host_vector<float> result;
+    std::vector<float> result;
     
     int matrix_size = matrix.size();
 
@@ -127,7 +126,7 @@ thrust::host_vector<char> get_avg_vector(thrust::host_vector<thrust::host_vector
         result[i] = avg;
     }
 
-    thrust::host_vector<char> char_result;
+    std::vector<char> char_result;
 
     for (int i = 0; i < matrix_size; i++) 
     {
@@ -141,13 +140,13 @@ thrust::host_vector<char> get_avg_vector(thrust::host_vector<thrust::host_vector
     return char_result;
 }
 
-int get_stream_matrix(int connection, thrust::host_vector<thrust::host_vector<float>> &matrix)
+int get_stream_matrix(int connection, std::vector<std::vector<float>> &matrix)
 {
     int buffer_size = 1;
     char* buffer = new char[buffer_size];
     
-    thrust::host_vector<char> number;
-    thrust::host_vector<float> line;
+    std::vector<char> number;
+    std::vector<float> line;
     int stream_size = 0;
     while (read(connection, buffer, buffer_size) > 0)
     {
@@ -182,7 +181,7 @@ int process_stream(int input_port, int output_port)
 {
     int* connection = listen_to_port(input_port);
 
-    thrust::host_vector<thrust::host_vector<float>> matrix;
+    std::vector<std::vector<float>> matrix;
 
     int stream_size = get_stream_matrix(connection[0], matrix);
 
@@ -190,7 +189,7 @@ int process_stream(int input_port, int output_port)
 
     double start = getMilliseconds();
 
-    thrust::host_vector<char> result = get_avg_vector(matrix);
+    std::vector<char> result = get_avg_vector(matrix);
 
     double end = getMilliseconds();
     double execution_time_in_seconds = (double)(end - start);
