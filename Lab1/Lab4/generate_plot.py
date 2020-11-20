@@ -38,6 +38,50 @@ import matplotlib.pyplot as plt
 # 0.49573973 0.50273305 0.49542955
 # 1048477859 bytes in 803.526000000 milliseconds
 
+# GPU
+# rinser@MININT-NIPENTJ:~/Lab4$ ./exp 1
+# 308
+# 0.51232781 0.49557019 0.49745109
+# 308
+# 0.51232779 0.49557027 0.49745110
+# 1043504 bytes in 0.257000000 milliseconds
+# rinser@MININT-NIPENTJ:~/Lab4$ ./exp 5
+# 690
+# 0.48393213 0.50876965 0.51855377
+# 690
+# 0.48393220 0.50876939 0.51855379
+# 5237100 bytes in 0.188000000 milliseconds
+# rinser@MININT-NIPENTJ:~/Lab4$ ./exp 10
+# 976
+# 0.49531631 0.50056905 0.49699987
+# 976
+# 0.49531618 0.50056887 0.49699956
+# 10478336 bytes in 0.235000000 milliseconds
+# rinser@MININT-NIPENTJ:~/Lab4$ ./exp 50
+# 2183
+# 0.50735116 0.49220687 0.50277124
+# 2183
+# 0.50735152 0.49220723 0.50277179
+# 52420379 bytes in 0.229000000 milliseconds
+# rinser@MININT-NIPENTJ:~/Lab4$ ./exp 100
+# 3087
+# 0.49531156 0.49680966 0.50084602
+# 3087
+# 0.49531174 0.49680948 0.50084549
+# 104825259 bytes in 0.224000000 milliseconds
+# rinser@MININT-NIPENTJ:~/Lab4$ ./exp 500
+# 6903
+# 0.49872795 0.49958483 0.5050213
+# 6903
+# 0.49872792 0.49958515 0.50502121
+# 524165499 bytes in 0.241000000 milliseconds
+# rinser@MININT-NIPENTJ:~/Lab4$ ./exp 1000
+# 9763
+# 0.49962358 0.499336 0.49772444
+# 9763
+# 0.49962291 0.49933535 0.49772468
+# 1048477859 bytes in 0.235000000 milliseconds
+
 def getAverageDifference(arr0, arr1):
     assert len(arr0) == len(arr1)
     return sum([(float(t[0] - t[1]) / t[0]) * 100 for t in zip(arr0, arr1)]) / len(arr0)
@@ -52,11 +96,11 @@ cpuTime = [
 ]
 
 gpuTime = [
-    2.173600000,
-    3.923900000,
-    7.003000000,
-    11.463800000,
-    21.367000000
+    0.235000000,
+    0.229000000,
+    0.224000000,
+    0.241000000,
+    0.235000000
 ]
 
 sizesInBytes = [ 10, 50, 100, 500, 1000 ]

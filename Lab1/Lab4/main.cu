@@ -9,7 +9,6 @@
 #include <string.h>
 #include <vector>
 #include <time.h>
-#include <assert.h>
 // CUDA runtime
 #include <cuda_runtime.h>
 // helper functions and utilities to work with CUDA
@@ -17,7 +16,7 @@
 #include <helper_cuda.h>
 #define MAX_SIZE 12
 
-int process_stream(int input_port, int output_port);
+int process_stream(int input_port, int output_port, int devId);
 
 int main(int argc, char* argv[])
 {
@@ -30,10 +29,12 @@ int main(int argc, char* argv[])
     int input_port = atoi(argv[1]);
     int output_port = atoi(argv[2]);
 
+    int devId = findCudaDevice(argc, (const char **)argv);
+
     for (;;) // forever and ever
     {
         printf("I am waiting for a Matrix at port %d\n", input_port);
-        process_stream(input_port, output_port);
+        process_stream(input_port, output_port, devId);
     }
 
     return 0;
@@ -156,15 +157,20 @@ void convertVectorToFlatArray(std::vector<std::vector<float>> matrix, float *fla
     }
  }
 
-__global__ void get_avg_vector(float *matrix, float *result)
+__global__ void get_avg_vector(float *matrix, float *result, int n)
 {
-    int row_idx = blockIdx.x;
-    int idx = threadIdx.x + (blockIdx.x * blockDim.x);
+    int row_idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int nsqrd = n*n;
 
-    atomicAdd(&result[row_idx], matrix[idx] / blockDim.x);
+    if (row_idx < nsqrd)
+    {
+        for (int i = row_idx; i < nsqrd; i += blockDim.x * gridDim.x)
+            atomicAdd(&result[i / n], matrix[i] / n);
+    }
+    
 }
 
-int process_stream(int input_port, int output_port)
+int process_stream(int input_port, int output_port, int devId)
 {
     int* connection = listen_to_port(input_port);
 
@@ -174,31 +180,32 @@ int process_stream(int input_port, int output_port)
 
     close_connection(connection[0], connection[1]);
 
-    float *a_matrix = (float*)malloc(matrix.size() * matrix.size() * sizeof(float));
-    convertVectorToFlatArray(matrix, a_matrix);
-
     int matrix_size = matrix.size();
+    int row_size = matrix_size * sizeof(float);
+    int flat_size = matrix_size * matrix_size * sizeof(float);
 
-    printf("%d\n", matrix_size);
+    float *a_matrix = (float*)malloc(flat_size);
+    convertVectorToFlatArray(matrix, a_matrix);
 
     float *d_matrix;
     float *d_result;
 
-    int row_size = matrix_size * sizeof(float);
-    int flat_size = row_size * row_size;
-
-    cudaMalloc((void**)&d_matrix, flat_size);
+    cudaMalloc(&d_matrix, flat_size);
     cudaMemcpy(d_matrix, a_matrix, flat_size, cudaMemcpyHostToDevice);
-
-    cudaMalloc((void**)&d_result, row_size);
+    
+    cudaMalloc(&d_result, row_size);
     cudaMemset(d_result, 0, row_size);
+
+    int numSMs;
+    cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, devId);
+
+    cudaDeviceProp props;
+    cudaGetDeviceProperties(&props, devId);
+    printf("Executed on device \"%s\"\n", props.name);
 
     double start = getMilliseconds();
 
-    printf("%f\n", start);
-
-    get_avg_vector<<<matrix_size, matrix_size>>>(d_matrix, d_result);
-    cudaDeviceSynchronize();
+    get_avg_vector<<<numSMs, 256>>>(d_matrix, d_result, matrix_size);
 
     double end = getMilliseconds();
     double execution_time_in_seconds = (double)(end - start);
@@ -221,8 +228,6 @@ int process_stream(int input_port, int output_port)
 
     result.insert(result.end(), buffer, buffer + strlen(buffer));
     result.push_back('\0');
-
-    printf("%s\n", &result[0]);
 
     send_stream_to_port(output_port, &result[0]);
 
