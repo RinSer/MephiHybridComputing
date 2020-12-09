@@ -1,0 +1,2 @@
+#./main 2525 2626
+mpirun -np $1 --oversubscribe main 2525 2626
