@@ -10,6 +10,12 @@
 #include <vector>
 #include <math.h>
 #include <mpi.h>
+// CUDA runtime
+#include <cuda_runtime.h>
+// helper functions and utilities to work with CUDA
+#include <helper_functions.h>
+#include <helper_cuda.h>
+
 #define WORD_SIZE 11
 #define MAX_SIZE 12
 
@@ -65,40 +71,6 @@ void send_stream_to_port(int port, char* stream)
     close(sock);
 }
 
-float get_line_avg(std::vector<float> line)
-{
-    int count = line.size();
-    float sum = 0;
-
-    for (int i = 0; i < count; i++)
-        sum += line[i] / count;
-
-    return sum;
-}
-
-std::vector<char> get_avg_vector(std::vector<float> matrix, int row_size, int num_rows)
-{
-    std::vector<float> result;
-    result.reserve(num_rows);
-
-    for (int i = 0; i < num_rows; i++)
-    {
-        double avg = get_line_avg(std::vector<float>(matrix.begin() + (i * row_size), matrix.begin() + (i * row_size) + row_size));
-        result[i] = avg;
-    }
-
-    std::vector<char> char_result;
-
-    for (int i = 0; i < num_rows; i++)
-    {
-        char* avg_str = new char[MAX_SIZE];
-        sprintf(avg_str, "%.8f ", result[i]);
-        char_result.insert(char_result.end(), avg_str, avg_str + strlen(avg_str));
-    }
-
-    return char_result;
-}
-
 int get_stream_matrix(int connection, std::vector<std::vector<float>>& matrix)
 {
     int buffer_size = 1;
@@ -136,6 +108,19 @@ int get_stream_matrix(int connection, std::vector<std::vector<float>>& matrix)
     return stream_size;
 }
 
+__global__ void get_avg_vector(float *matrix, float *result, int row_size, int num_rows)
+{
+    int row_idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (row_idx < num_rows)
+    {
+        for (int i = row_idx; i < num_rows; i += blockDim.x * gridDim.x) 
+        {
+            atomicAdd(&result[i], matrix[i] / row_size);
+        }
+    }
+}
+
 int main(int argc, char* argv[])
 {
     if (argc < 3)
@@ -146,6 +131,8 @@ int main(int argc, char* argv[])
 
     int input_port = atoi(argv[1]);
     int output_port = atoi(argv[2]);
+
+    int devId = findCudaDevice(argc, (const char **)argv);
 
     MPI_Init(&argc, &argv);
 
@@ -211,8 +198,54 @@ int main(int argc, char* argv[])
 
         MPI_Scatterv(flat_matrix.data(), sendcounts, displs, MPI_FLOAT, partial_matrix.data(), sendcounts[numtasks-1], MPI_FLOAT, 0, MPI_COMM_WORLD);
 
-        // TODO: move to CUDA kernel !!!
-        std::vector<char> partial_result = get_avg_vector(partial_matrix, row_size, num_rows);
+        // CUDA kernel data initialization
+        std::vector<float> lines_matrix = std::vector<float>(partial_matrix.begin(), partial_matrix.begin() + (num_rows * row_size));
+        int matrix_size = lines_matrix.size();
+
+        int row_float_size = num_rows * sizeof(float);
+        int float_size = matrix_size * sizeof(float);
+
+        float *a_matrix = (float*)malloc(float_size);
+        for (int i = 0; i < matrix_size; i++)
+            a_matrix[i] = lines_matrix[i];
+
+        float *d_matrix;
+        float *d_result;
+
+        cudaMalloc(&d_matrix, float_size);
+        cudaMemcpy(d_matrix, a_matrix, float_size, cudaMemcpyHostToDevice);
+        
+        cudaMalloc(&d_result, row_float_size);
+        cudaMemset(d_result, 0, row_float_size);
+
+        int numSMs;
+        cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, devId);
+
+        cudaDeviceProp props;
+        cudaGetDeviceProperties(&props, devId);
+
+        get_avg_vector<<<numSMs, 256>>>(d_matrix, d_result, row_size, num_rows);
+
+        float *float_result = (float*)malloc(row_float_size);
+        cudaMemcpy(float_result, d_result, row_float_size, cudaMemcpyDeviceToHost);
+
+        std::vector<char> partial_result;
+        partial_result.reserve(num_rows);
+
+        for (int i = 0; i < num_rows; i++) 
+        {
+            char* avg_str = new char[MAX_SIZE];
+            sprintf(avg_str, "%.8f ", float_result[i]);
+            printf("%s", avg_str);
+            partial_result.insert(partial_result.end(), avg_str, avg_str + strlen(avg_str));
+        }
+
+        cudaFree(d_result);
+        cudaFree(d_matrix);
+        free(float_result);
+        free(a_matrix);
+
+        // CUDA finished
 
         std::vector<char> parallel_result;
         if (rank == 0) parallel_result.reserve(WORD_SIZE * row_size);
