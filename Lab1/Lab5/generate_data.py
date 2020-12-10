@@ -74,9 +74,7 @@ def generate_stream_with_matrix(sizePorts):
     print(' '.join([str(avg) for avg in avg_vector[:NUM_AVERAGES_DISPLAYED]]))
     matrix_file_path = str(num_rows_and_cols) + '.mtrx'
     np.savetxt(matrix_file_path, matrix, fmt='%.8f', delimiter=' ')
-    # matrix_str = np.array2string(matrix, formatter={'float_kind':lambda x: "%.8f" % x}, separator=' ').replace('[','').replace(']','')
-
-    # print(matrix_str.split('\n')[0])
+    
     send_file_to_socket(sizePorts[1], matrix_file_path)
     get_string_from_socket(sizePorts[2], avg_vector)
     

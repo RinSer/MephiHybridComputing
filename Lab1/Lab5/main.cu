@@ -111,12 +111,13 @@ int get_stream_matrix(int connection, std::vector<std::vector<float>>& matrix)
 __global__ void get_avg_vector(float *matrix, float *result, int row_size, int num_rows)
 {
     int row_idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int max_idx = row_size * num_rows;
 
-    if (row_idx < num_rows)
+    if (row_idx < max_idx)
     {
-        for (int i = row_idx; i < num_rows; i += blockDim.x * gridDim.x) 
+        for (int i = row_idx; i < max_idx; i += blockDim.x * gridDim.x) 
         {
-            atomicAdd(&result[i], matrix[i] / row_size);
+            atomicAdd(&result[i / row_size], matrix[i] / row_size);
         }
     }
 }
@@ -236,7 +237,6 @@ int main(int argc, char* argv[])
         {
             char* avg_str = new char[MAX_SIZE];
             sprintf(avg_str, "%.8f ", float_result[i]);
-            printf("%s", avg_str);
             partial_result.insert(partial_result.end(), avg_str, avg_str + strlen(avg_str));
         }
 
